@@ -1,0 +1,110 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Wheel : MonoBehaviour
+{
+    #region  Serialized Fields
+    [Header("Motion")]
+    [SerializeField] private bool motion;
+   
+    #endregion
+
+
+    #region  Public Fields
+    [Header("Suspension")]
+    public VehicleSuspension suspension;
+    public RaycastHit hit;
+    public bool debug;
+    [HideInInspector] public float rotationSpeedConst;
+   
+
+   #endregion
+   
+    
+    #region Private Fields
+    private Rigidbody rb;
+    private Transform tr;
+   
+    private float lastLength;
+    private float springLength;
+    private  Vector3 pointSpeedLS;
+    private Vector3 initPos;
+    private Rigidbody ownRb;
+    private Vector3 brake;
+     private Transform wheelMesh;
+   
+    #endregion
+
+    private void Awake()
+     {
+        InputManager.SuspensionLengthUpControl += () => suspension.restLength += 0.2f ; 
+        InputManager.SuspensionLengthDownControl += () => suspension.restLength -= 0.2f ; 
+     }
+     private void Start()
+    {
+        rb = transform.root.GetComponent<Rigidbody>();
+         tr = transform;
+         rotationSpeedConst = suspension.rotationSpeed;
+         wheelMesh = tr.GetChild(0);
+           
+           
+    }
+   private void Update() {
+    
+    WheelMeshVisualize();
+   }
+    private void FixedUpdate() 
+    {
+       
+
+        if(Physics.SphereCast(tr.position,suspension.wheelRadius,-tr.up,out hit,suspension.restLength ,~suspension.carLayer))
+        {
+           SuspensionForce(hit);
+
+             Friction(hit);
+            BrakeForce(hit);
+         } 
+        
+    } 
+
+    private void SuspensionForce(RaycastHit hit)
+    {
+      
+
+
+        lastLength = springLength;
+        springLength = hit.distance;
+        springLength = Mathf.Clamp(springLength,suspension.minLength,suspension.restLength);
+        float springVel = (lastLength - springLength)/Time.fixedDeltaTime;        
+        float springForce = (suspension.restLength - springLength)*suspension.springStiffness;
+        float damperForce = suspension.damperStiffness*springVel;            
+        rb.AddForceAtPosition(tr.up*(springForce + damperForce) + tr.forward*(motion == true ? Motor.Power/4: 0),hit.point);
+        Debug.DrawRay(tr.position,-tr.up*springLength,Color.red);
+         
+     }
+
+    
+    
+
+    private float AngleBetweenLines(Vector3 n1,Vector3 n2)
+    {
+        float sum = n1.x * n2.x + n1.y * n2.y + n1.z * n2.z;
+        float mag = n1.magnitude * n2.magnitude;
+        float rad = Mathf.Acos(sum / mag);
+        float angle = rad * Mathf.Rad2Deg;
+        return angle;
+    }
+    private void OnDrawGizmos() {
+        
+        if(hit.collider)
+        {
+            Gizmos.color =Color.red;
+            Gizmos.DrawWireSphere(hit.point,0.4f);
+        }
+          Gizmos.color = Color.green;
+          Gizmos.DrawWireSphere(transform.position - transform.up*(springLength),suspension.wheelRadius);
+    }
+
+
+}
